@@ -1,6 +1,8 @@
 from django.shortcuts import render, redirect, get_object_or_404
-from .models import Movie, Review, ReviewReport
 from django.contrib.auth.decorators import login_required
+from django.db.models import Count, Exists, OuterRef
+from .models import Movie, Review, Petition, PetitionVote
+
 # Create your views here.
 def index(request):
     search_term = request.GET.get('search')
@@ -71,3 +73,41 @@ def report_review(request, id, review_id):
     review.save()
 
     return redirect('movies.show', id=id)
+
+@login_required
+def petitions(request):
+    """
+    GET: show list of petitions with Yes counts and a create form
+    POST: create a new petition
+    """
+    if request.method == 'POST':
+        title = request.POST.get('title', '').strip()
+        rationale = request.POST.get('rationale', '').strip()
+        if title:
+            Petition.objects.create(
+                title=title,
+                rationale=rationale,
+                created_by=request.user
+            )
+            return redirect('movies.petitions')
+
+    qs = Petition.objects.all().order_by('-created_at').annotate(yes_count=Count('votes'))
+
+    # annotate if current user already voted (for disabling the button)
+    if request.user.is_authenticated:
+        already = PetitionVote.objects.filter(user=request.user, petition=OuterRef('pk'))
+        qs = qs.annotate(user_voted=Exists(already))
+
+    template_data = {
+        'title': 'Petitions',
+        'petitions': qs,
+    }
+    return render(request, 'movies/petitions.html', {'template_data': template_data})
+
+@login_required
+def petition_vote(request, petition_id):
+    if request.method != 'POST':
+        return redirect('movies.petitions')
+    petition = get_object_or_404(Petition, pk=petition_id)
+    PetitionVote.objects.get_or_create(user=request.user, petition=petition)
+    return redirect('movies.petitions')

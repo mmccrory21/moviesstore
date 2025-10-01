@@ -1,7 +1,6 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
-from django.db.models import Count, Exists, OuterRef
-from .models import Movie, Review, Petition, PetitionVote
+from .models import Movie, Review
 
 # Create your views here.
 def index(request):

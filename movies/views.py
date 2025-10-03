@@ -1,6 +1,7 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
-from .models import Movie, Review
+from django.db.models import Count, Exists, OuterRef
+from .models import Movie, Review, Petition, PetitionVote
 
 # Create your views here.
 def index(request):
@@ -75,38 +76,26 @@ def report_review(request, id, review_id):
 
 @login_required
 def petitions(request):
-    """
-    GET: show list of petitions with Yes counts and a create form
-    POST: create a new petition
-    """
+    # POST => create a petition
     if request.method == 'POST':
         title = request.POST.get('title', '').strip()
         rationale = request.POST.get('rationale', '').strip()
         if title:
-            Petition.objects.create(
-                title=title,
-                rationale=rationale,
-                created_by=request.user
-            )
+            Petition.objects.create(title=title, rationale=rationale, created_by=request.user)
             return redirect('movies.petitions')
 
+    # GET => list with Yes counts; show if current user already voted
     qs = Petition.objects.all().order_by('-created_at').annotate(yes_count=Count('votes'))
+    already = PetitionVote.objects.filter(user=request.user, petition=OuterRef('pk'))
+    qs = qs.annotate(user_voted=Exists(already))
 
-    # annotate if current user already voted (for disabling the button)
-    if request.user.is_authenticated:
-        already = PetitionVote.objects.filter(user=request.user, petition=OuterRef('pk'))
-        qs = qs.annotate(user_voted=Exists(already))
-
-    template_data = {
-        'title': 'Petitions',
-        'petitions': qs,
-    }
+    template_data = {'title': 'Petitions', 'petitions': qs}
     return render(request, 'movies/petitions.html', {'template_data': template_data})
 
 @login_required
 def petition_vote(request, petition_id):
     if request.method != 'POST':
         return redirect('movies.petitions')
-    petition = get_object_or_404(Petition, pk=petition_id)
-    PetitionVote.objects.get_or_create(user=request.user, petition=petition)
+    p = get_object_or_404(Petition, pk=petition_id)
+    PetitionVote.objects.get_or_create(user=request.user, petition=p)  # idempotent
     return redirect('movies.petitions')

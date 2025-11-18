@@ -5,6 +5,11 @@ from django.contrib.auth.forms import UserCreationForm
 from django.shortcuts import redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
+from .forms import ProfileImageForm
+from django.contrib import messages
+from .forms import ProfileImageForm
+from .models import Profile
+
 @login_required
 def orders(request):
     template_data = {}
@@ -52,3 +57,20 @@ def signup(request):
             template_data['form'] = form
             return render(request, 'accounts/signup.html',
                 {'template_data': template_data})
+@login_required
+def profile_page(request):
+    # Ensure a profile exists for this user
+    profile, _ = Profile.objects.get_or_create(user=request.user)
+
+    if request.method == "POST":
+        form = ProfileImageForm(request.POST, request.FILES)
+        if form.is_valid():
+            profile.image = form.cleaned_data["image"]
+            profile.save()
+            messages.success(request, "Profile picture updated!")
+            return redirect("accounts.profile")
+    else:
+        form = ProfileImageForm()
+
+    template_data = {"title": "My Profile", "profile": profile, "form": form}
+    return render(request, "accounts/profile.html", {"template_data": template_data})

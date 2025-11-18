@@ -10,5 +10,5 @@ urlpatterns = [
     path('petitions/', views.petitions, name='movies.petitions'),
     path('petitions/<int:petition_id>/vote/', views.petition_vote, name='movies.petition_vote'),
     path('<int:id>/rate/', views.rate_movie, name='movies.rate'),
-    path('popularity_map/', views.popularity_map, name='movies.popularity_map'),
+    path('popularity-map/', views.popularity_map, name='movies.popularity_map'),
 ]

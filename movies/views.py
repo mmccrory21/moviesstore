@@ -1,7 +1,7 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
-from django.db.models import Count, Exists, OuterRef, Avg
-from .models import Movie, Review, Petition, PetitionVote, Rating, ReviewReport
+from django.db.models import Count, Exists, OuterRef, Avg, Sum
+from .models import Movie, Review, Petition, PetitionVote, Rating, ReviewReport, PurchaseEvent
 
 # Create your views here.
 def index(request):
@@ -128,3 +128,66 @@ def rate_movie(request, id):
         defaults={'value': value}
     )
     return redirect('movies.show', id=id)
+
+STATE_CENTROIDS = {
+    "AL": (32.806671, -86.791130), "AK": (61.370716, -152.404419), "AZ": (33.729759, -111.431221),
+    "AR": (34.969704, -92.373123), "CA": (36.116203, -119.681564), "CO": (39.059811, -105.311104),
+    "CT": (41.597782, -72.755371), "DE": (39.318523, -75.507141), "FL": (27.766279, -81.686783),
+    "GA": (33.040619, -83.643074), "HI": (21.094318, -157.498337), "ID": (44.240459, -114.478828),
+    "IL": (40.349457, -88.986137), "IN": (39.849426, -86.258278), "IA": (42.011539, -93.210526),
+    "KS": (38.526600, -96.726486), "KY": (37.668140, -84.670067), "LA": (31.169546, -91.867805),
+    "ME": (44.693947, -69.381927), "MD": (39.063946, -76.802101), "MA": (42.230171, -71.530106),
+    "MI": (43.326618, -84.536095), "MN": (45.694454, -93.900192), "MS": (32.741646, -89.678696),
+    "MO": (38.456085, -92.288368), "MT": (46.921925, -110.454353), "NE": (41.125370, -98.268082),
+    "NV": (38.313515, -117.055374), "NH": (43.452492, -71.563896), "NJ": (40.298904, -74.521011),
+    "NM": (34.840515, -106.248482), "NY": (42.165726, -74.948051), "NC": (35.630066, -79.806419),
+    "ND": (47.528912, -99.784012), "OH": (40.388783, -82.764915), "OK": (35.565342, -96.928917),
+    "OR": (44.572020, -122.070938), "PA": (40.590752, -77.209755), "RI": (41.680893, -71.511780),
+    "SC": (33.856892, -80.945007), "SD": (44.299782, -99.438828), "TN": (35.747845, -86.692345),
+    "TX": (31.054487, -97.563461), "UT": (40.150032, -111.862434), "VT": (44.045876, -72.710686),
+    "VA": (37.769337, -78.169968), "WA": (47.400902, -121.490494), "WV": (38.491226, -80.954453),
+    "WI": (44.268543, -89.616508), "WY": (42.755966, -107.302490),
+}
+
+@login_required
+def popularity_map(request):
+    """
+    Renders a map with markers per state; clicking a marker shows that state's top movies.
+    A right-hand panel also lists the currently selected state's top titles.
+    """
+    # Aggregate total quantities per (region, movie)
+    raw = (
+        PurchaseEvent.objects
+        .values('region', 'movie__name')
+        .annotate(total=Sum('quantity'))
+    )
+
+    # Build a dict: region -> { total_all, top_movies: [(title, count), ...] }
+    region_stats = {}
+    for row in raw:
+        reg = row['region']
+        title = row['movie__name']
+        cnt = row['total'] or 0
+        region_stats.setdefault(reg, {'total': 0, 'movies': {}})
+        region_stats[reg]['total'] += cnt
+        region_stats[reg]['movies'][title] = region_stats[reg]['movies'].get(title, 0) + cnt
+
+    # Convert movies dicts to sorted lists (top 5)
+    payload = []
+    for reg, data in region_stats.items():
+        if reg not in STATE_CENTROIDS:
+            continue
+        lat, lon = STATE_CENTROIDS[reg]
+        movies_sorted = sorted(data['movies'].items(), key=lambda kv: (-kv[1], kv[0]))[:5]
+        payload.append({
+            'region': reg,
+            'lat': lat, 'lon': lon,
+            'total': data['total'],
+            'top_movies': [{'title': t, 'count': c} for t, c in movies_sorted]
+        })
+
+    template_data = {
+        'title': 'Local Popularity Map',
+        'points': payload,          # list of per-state payload items
+    }
+    return render(request, 'movies/popularity_map.html', {'template_data': template_data})

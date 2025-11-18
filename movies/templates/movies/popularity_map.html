@@ -1,0 +1,89 @@
+{% extends 'base.html' %}
+{% block content %}
+
+{# Safely provide data to JS; expects template_data.points to be a list #}
+{{ template_data.points|default:"[]"|json_script:"points-data" }}
+
+<link rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      crossorigin="">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        crossorigin=""></script>
+
+<div class="container-fluid p-3">
+  <div class="row">
+    <div class="col-lg-8">
+      <h2>Local Popularity Map</h2>
+      <div id="map" style="height:520px;border-radius:8px;border:1px solid #ddd;"></div>
+    </div>
+    <div class="col-lg-4">
+      <h4 class="mt-4 mt-lg-0">Top in <span id="panel-region">—</span></h4>
+      <ul id="panel-list" class="list-group"></ul>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  // Parse JSON safely from the hidden script tag
+  let POP_POINTS = [];
+  try {
+    const el = document.getElementById('points-data');
+    if (el && el.textContent) POP_POINTS = JSON.parse(el.textContent);
+  } catch (e) {
+    console.error("Failed to parse points:", e);
+    POP_POINTS = [];
+  }
+
+  // Guard: if Leaflet failed to load, don't crash
+  if (!window.L) { console.error("Leaflet not loaded"); return; }
+
+  const map = L.map('map', { scrollWheelZoom: false }).setView([39.8, -98.6], 4);
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap'
+  }).addTo(map);
+
+  function renderPanel(regionCode, top) {
+    const r = document.getElementById('panel-region');
+    const ul = document.getElementById('panel-list');
+    if (!r || !ul) return;
+    r.textContent = regionCode || '—';
+    ul.innerHTML = '';
+    (top && top.length ? top : [{title:'No data yet', count:''}]).forEach(item => {
+      const li = document.createElement('li');
+      li.className = 'list-group-item d-flex justify-content-between align-items-center';
+      li.textContent = item.title;
+      if (item.count !== '') {
+        const badge = document.createElement('span');
+        badge.className = 'badge bg-dark rounded-pill';
+        badge.textContent = item.count;
+        li.appendChild(badge);
+      }
+      ul.appendChild(li);
+    });
+  }
+
+  let first = true;
+  (POP_POINTS || []).forEach(p => {
+    const radius = Math.max(6, Math.min(24, 6 + Math.sqrt(p.total || 0)));
+    const m = L.circleMarker([p.lat, p.lon], { radius, weight: 1 }).addTo(map);
+    const html = `
+      <div>
+        <b>${p.region}</b><br/>
+        <div>Purchases: <b>${p.total}</b></div>
+        <div style="margin-top:6px;">
+          <div><b>Top movies</b></div>
+          <ol style="margin:6px 0 0 18px;">
+            ${(p.top_movies||[]).map(tm => `<li>${tm.title} — ${tm.count}</li>`).join('')}
+          </ol>
+        </div>
+      </div>`;
+    m.bindPopup(html);
+    m.on('click', () => renderPanel(p.region, p.top_movies));
+    if (first) { renderPanel(p.region, p.top_movies); first = false; }
+  });
+
+  if (!POP_POINTS || POP_POINTS.length === 0) renderPanel(null, []);
+})();
+</script>
+{% endblock content %}

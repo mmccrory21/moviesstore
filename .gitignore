@@ -11,4 +11,6 @@ db.sqlite3
 
 # VSCode / PyCharm
 .vscode/
-.idea/
+.idea/db.sqlite3
+media/
+staticfiles/

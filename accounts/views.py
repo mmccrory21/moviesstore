@@ -9,6 +9,7 @@ from .forms import ProfileImageForm
 from django.contrib import messages
 from .forms import ProfileImageForm
 from .models import Profile
+from .forms import ProfileSettingsForm
 
 @login_required
 def orders(request):
@@ -59,18 +60,25 @@ def signup(request):
                 {'template_data': template_data})
 @login_required
 def profile_page(request):
-    # Ensure a profile exists for this user
     profile, _ = Profile.objects.get_or_create(user=request.user)
 
     if request.method == "POST":
-        form = ProfileImageForm(request.POST, request.FILES)
+        form = ProfileSettingsForm(request.POST, request.FILES)
         if form.is_valid():
-            profile.image = form.cleaned_data["image"]
+            img = form.cleaned_data.get("image")
+            if img:
+                profile.image = img
+            val = form.cleaned_data.get("max_content_rating")
+            if val:
+                profile.max_content_rating = val
             profile.save()
-            messages.success(request, "Profile picture updated!")
+            messages.success(request, "Profile updated!")
             return redirect("accounts.profile")
+        else:
+            # surface errors to the page
+            messages.error(request, f"Please fix the form: {form.errors.as_text()}")
     else:
-        form = ProfileImageForm()
+        form = ProfileSettingsForm(initial={"max_content_rating": profile.max_content_rating})
 
     template_data = {"title": "My Profile", "profile": profile, "form": form}
     return render(request, "accounts/profile.html", {"template_data": template_data})

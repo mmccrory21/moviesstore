@@ -6,7 +6,7 @@ class MovieAdmin(admin.ModelAdmin):
 
 class ReviewAdmin(admin.ModelAdmin):
     list_display = ('id', 'movie', 'user', 'date', 'is_removed')
-    list_filter = ('is_removed', 'date', 'movie')
+    list_filter = ('is_removed', 'date', 'movie', "content_rating")
     search_fields = ('comment', 'user__username', 'movie__name')
 
 @admin.register(PurchaseEvent)

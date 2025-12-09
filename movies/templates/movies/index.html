@@ -4,46 +4,56 @@
 <div class="p-3">
   <div class="container">
 
-    <!-- Header + Map Button -->
-    <div class="row mt-3 align-items-center">
-      <div class="col">
+    <div class="row mt-3">
+      <div class="col mx-auto mb-3">
         <h2>List of Movies</h2>
-      </div>
-      <div class="col-auto">
-        <a href="{% url 'movies.popularity_map' %}" class="btn bg-dark text-white">
-          Local Popularity Map
-        </a>
-      </div>
-    </div>
-    <hr />
-
-    <!-- Search -->
-    <div class="row mb-3">
-      <div class="col">
-        <form method="GET" class="d-flex gap-2">
-          <div class="input-group" style="max-width: 420px;">
-            <span class="input-group-text">Search</span>
-            <input type="text" class="form-control" name="search" value="{{ request.GET.search }}">
-          </div>
-          <button class="btn bg-dark text-white" type="submit">Search</button>
-        </form>
+        <hr />
+        <!-- your search form can stay above if you have it -->
       </div>
     </div>
 
-    <!-- Movies Grid -->
+    <style>
+      .movie-card.blocked {
+        filter: blur(4px) grayscale(20%);
+        opacity: .6;
+        position: relative;
+      }
+      .movie-card .blocked-overlay {
+        position: absolute; inset: 0;
+        background: rgba(0,0,0,.45);
+        color: #fff; display: flex; align-items: center; justify-content: center;
+        font-weight: 600; text-align: center; padding: .5rem;
+      }
+      .movie-card.blocked a, .movie-card.blocked button {
+        pointer-events: none;
+      }
+      .rating-badge {
+        position: absolute; top: 8px; left: 8px;
+        font-size: .85rem; background: #212529; color:#fff;
+        padding: 2px 6px; border-radius: 6px;
+      }
+    </style>
+
     <div class="row">
       {% for movie in template_data.movies %}
         <div class="col-md-4 col-lg-3 mb-3">
-          <div class="card p-2 align-items-center pt-4">
+          <div class="card p-2 align-items-center pt-4 position-relative movie-card {% if movie.blocked %}blocked{% endif %}">
+            <span class="rating-badge">{{ movie.rating_badge }}</span>
             <img src="{{ movie.image.url }}" class="card-img-top rounded img-card-200" alt="{{ movie.name }}">
             <div class="card-body text-center">
-              <a href="{% url 'movies.show' id=movie.id %}" class="btn bg-dark text-white">
-                {{ movie.name }}
-              </a>
-              {% if movie.price %}
-                <div class="mt-2 text-muted">${{ movie.price }}</div>
+              {% if movie.blocked %}
+                <span class="btn btn-secondary disabled" aria-disabled="true">{{ movie.name }}</span>
+                <div class="small text-muted mt-1">Hidden by your Max Content Rating</div>
+              {% else %}
+                <a href="{% url 'movies.show' id=movie.id %}" class="btn bg-dark text-white">
+                  {{ movie.name }}
+                </a>
               {% endif %}
             </div>
+
+            {% if movie.blocked %}
+              <div class="blocked-overlay">Blocked ({{ movie.content_rating }})</div>
+            {% endif %}
           </div>
         </div>
       {% empty %}

@@ -1,7 +1,10 @@
+from urllib import request
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.db.models import Count, Exists, OuterRef, Avg, Sum
 from .models import Movie, Review, Petition, PetitionVote, Rating, ReviewReport, PurchaseEvent
+from accounts.models import Profile
+from django.contrib.auth.models import AnonymousUser
 
 # Create your views here.
 def index(request):
@@ -191,3 +194,27 @@ def popularity_map(request):
         'points': payload,          # list of per-state payload items
     }
     return render(request, 'movies/popularity_map.html', {'template_data': template_data})
+
+def index(request):
+    qs = Movie.objects.all()
+
+    # Determine user's maximum allowed level
+    if isinstance(request.user, AnonymousUser):
+        user_max = "R"   # guests see everything
+    else:
+        profile, _ = Profile.objects.get_or_create(user=request.user)
+        user_max = profile.max_content_rating or "R"
+
+    level = {"G": 0, "PG": 1, "PG-13": 2, "R": 3}
+    max_level = level.get(user_max, 3)
+
+    movies = []
+    for m in qs:
+        blocked = level.get(m.content_rating, 3) > max_level
+        # stash helpers for the template
+        m.blocked = blocked
+        m.rating_badge = m.content_rating
+        movies.append(m)
+
+    template_data = {"title": "List of Movies", "movies": movies}
+    return render(request, "movies/index.html", {"template_data": template_data})
